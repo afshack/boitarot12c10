@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Huyền Bí Bot - Tarot, Cung hoàng đạo, Tử vi</title>
+<style>
+:root{--bg:#120e24;--card:#1d1736;--card2:#251d45;--text:#ece8fa;--muted:#9a93b8;--primary:#a78bfa;--gold:#f5c76b;--border:#34295a;--on:#120e24}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:radial-gradient(1200px 600px at 50% -10%,#2a1f5a 0,var(--bg) 60%);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#app{height:100%;max-width:760px;margin:0 auto;display:flex;flex-direction:column}
+header{padding:12px 16px;border-bottom:1px solid var(--border);background:rgba(29,23,54,.85);display:flex;justify-content:space-between;align-items:center}
+header h1{font-size:17px;margin:0;color:var(--gold)}
+header small{display:block;color:var(--muted);font-size:12px}
+#home{border:1px solid var(--border);background:none;color:var(--muted);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:13px;display:none}
+#log{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
+.msg{max-width:92%;padding:10px 14px;border-radius:16px;word-wrap:break-word;overflow-wrap:anywhere}
+.msg.user{align-self:flex-end;background:var(--primary);color:var(--on);border-bottom-right-radius:4px}
+.msg.bot{align-self:flex-start;background:var(--card);border:1px solid var(--border);border-bottom-left-radius:4px}
+.msg b{color:var(--gold)}
+.t{font-weight:700;color:var(--gold);margin-bottom:4px}
+.st{margin:4px 0}
+.mute{color:var(--muted);font-size:13.5px}
+.opts{display:flex;flex-wrap:wrap;gap:8px;align-self:flex-start;max-width:96%}
+.opt{border:1px solid var(--primary);background:var(--card);color:var(--primary);padding:7px 12px;border-radius:999px;cursor:pointer;font:inherit;font-size:14px}
+.opt:hover{background:var(--primary);color:var(--on)}
+.tc{display:inline-block;text-align:center;background:var(--card2);border:1px solid var(--gold);border-radius:12px;padding:10px 14px;margin:4px 6px 4px 0;min-width:130px}
+.tc .sym{font-size:40px;line-height:1.1}
+.tc .sym.rev{display:inline-block;transform:rotate(180deg)}
+.tc .tn{font-weight:700;color:var(--gold)}
+.tc .ten{font-size:12px;color:var(--muted)}
+.stars{color:var(--gold);letter-spacing:2px}
+.row{display:flex;justify-content:space-between;gap:10px}
+#bar{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--border);background:rgba(29,23,54,.9)}
+#q{flex:1;border:1px solid var(--border);border-radius:12px;padding:10px 12px;font:inherit;background:var(--bg);color:var(--text)}
+#q:focus{outline:2px solid var(--primary)}
+#send{border:0;background:var(--primary);color:var(--on);border-radius:12px;padding:0 18px;font-weight:600;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div><h1>🔮 Huyền Bí Bot</h1><small>Cung hoàng đạo · Tarot · Tử vi · Thần số học · Giải mộng</small></div>
+    <button id="home" type="button">↩ Menu</button>
+  </header>
+  <div id="log"></div>
+  <form id="bar" autocomplete="off">
+    <input id="q" type="text" maxlength="80" placeholder="Nhập tên của bạn...">
+    <button id="send" type="submit">Bắt đầu</button>
+  </form>
+</div>
+<script>
+"use strict";
+const $=id=>document.getElementById(id), log=$("log"), qIn=$("q"), sendBtn=$("send"), homeBtn=$("home");
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const norm=s=>String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/đ/g,"d");
+const pad=x=>String(x).padStart(2,"0");
+function scroll(){log.scrollTop=log.scrollHeight}
+function bot(h){const d=document.createElement("div");d.className="msg bot";d.innerHTML=h;log.appendChild(d);scroll();return d}
+function user(t){const d=document.createElement("div");d.className="msg user";d.textContent=t;log.appendChild(d);scroll()}
+function opts(list){
+  const w=document.createElement("div");w.className="opts";
+  list.forEach(([label,fn])=>{const b=document.createElement("button");b.type="button";b.className="opt";b.textContent=label;b.onclick=()=>{w.remove();user(label);fn()};w.appendChild(b)});
+  log.appendChild(w);scroll();
+}
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function rng(seed){let a=seed>>>0;return()=>{a+=0x6D2B79F5;let t=a;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
+const stars=n=>"★".repeat(n)+"☆".repeat(5-n);
+const NOTE="<div class='mute'>Nội dung mang tính giải trí và tham khảo, không thay thế lời khuyên y tế, tài chính hay pháp lí.</div>";
+
+/* ---------- dữ liệu cung hoàng đạo ---------- */
+const SIGNS=[
+["Bạch Dương","♈","21/3 – 19/4","Lửa","Tiên phong","Sao Hỏa","Nhiệt huyết, thẳng thắn, thích dẫn đầu và dám bắt đầu việc mới. Đôi khi nóng vội và thiếu kiên nhẫn.","Yêu chân thành, chủ động, cần người đủ vững vàng để theo kịp nhịp của bạn.","Hợp vai trò khởi xướng, kinh doanh, thể thao, những việc cần quyết đoán nhanh."],
+["Kim Ngưu","♉","20/4 – 20/5","Đất","Kiên định","Sao Kim","Vững vàng, thực tế, yêu cái đẹp và sự ổn định. Có thể bướng bỉnh và ngại thay đổi.","Chậm mà chắc, trung thành, coi trọng sự an toàn và những điều giản dị.","Hợp tài chính, ẩm thực, nghệ thuật, những công việc cần bền bỉ."],
+["Song Tử","♊","21/5 – 20/6","Khí","Linh hoạt","Sao Thủy","Nhanh trí, hoạt ngôn, tò mò về mọi thứ. Dễ phân tán và hay thay đổi ý kiến.","Cần người trò chuyện cùng, thích sự mới mẻ và hài hước.","Hợp truyền thông, giảng dạy, viết lách, bán hàng."],
+["Cự Giải","♋","21/6 – 22/7","Nước","Tiên phong","Mặt Trăng","Nhạy cảm, giàu tình thương, coi trọng gia đình. Dễ tổn thương và hay lo xa.","Chăm sóc tận tụy, cần cảm giác an toàn về mặt cảm xúc.","Hợp chăm sóc sức khỏe, giáo dục, ẩm thực, công việc cần sự thấu cảm."],
+["Sư Tử","♌","23/7 – 22/8","Lửa","Kiên định","Mặt Trời","Tự tin, hào phóng, có sức hút và thích tỏa sáng. Có thể kiêu hãnh và cần được ghi nhận.","Yêu nồng nhiệt, rộng lượng, mong được trân trọng.","Hợp lãnh đạo, biểu diễn, sáng tạo, quản lí."],
+["Xử Nữ","♍","23/8 – 22/9","Đất","Linh hoạt","Sao Thủy","Tỉ mỉ, chu đáo, phân tích tốt. Hay cầu toàn và tự phê bình.","Thể hiện tình cảm qua hành động nhỏ, cần người đáng tin cậy.","Hợp nghiên cứu, y tế, kế toán, biên tập, những việc cần độ chính xác."],
+["Thiên Bình","♎","23/9 – 22/10","Khí","Tiên phong","Sao Kim","Hòa nhã, yêu công bằng và cái đẹp. Hay do dự khi phải lựa chọn.","Lãng mạn, coi trọng sự hài hòa và chia sẻ.","Hợp ngoại giao, luật, thiết kế, làm việc nhóm."],
+["Bọ Cạp","♏","23/10 – 21/11","Nước","Kiên định","Sao Diêm Vương","Sâu sắc, kiên cường, trực giác tốt. Có thể kín đáo và khó buông chuyện cũ.","Yêu mãnh liệt, cần sự chân thành và tin tưởng tuyệt đối.","Hợp nghiên cứu, tâm lí, điều tra, hoạch định chiến lược."],
+["Nhân Mã","♐","22/11 – 21/12","Lửa","Linh hoạt","Sao Mộc","Lạc quan, thích khám phá và tự do. Có thể thiếu kiên nhẫn với ràng buộc.","Cần người đồng hành cùng khám phá và trưởng thành.","Hợp du lịch, giáo dục, xuất bản, kinh doanh quốc tế."],
+["Ma Kết","♑","22/12 – 19/1","Đất","Tiên phong","Sao Thổ","Kỉ luật, có trách nhiệm, kiên trì theo đuổi mục tiêu. Dễ khắt khe và quá nghiêm túc.","Chậm nhưng nghiêm túc, xây dựng mối quan hệ lâu dài.","Hợp quản lí, tài chính, kĩ thuật, công việc dài hạn."],
+["Bảo Bình","♒","20/1 – 18/2","Khí","Kiên định","Sao Thiên Vương","Độc lập, sáng tạo, giàu lí tưởng. Có thể xa cách và khó đoán.","Cần không gian riêng và người hiểu mình.","Hợp công nghệ, khoa học, hoạt động xã hội."],
+["Song Ngư","♓","19/2 – 20/3","Nước","Linh hoạt","Sao Hải Vương","Mơ mộng, giàu cảm xúc và trí tưởng tượng. Dễ cuốn theo cảm xúc, hay né tránh thực tế.","Dịu dàng, lãng mạn, dễ hi sinh vì người mình yêu.","Hợp nghệ thuật, âm nhạc, chăm sóc, tâm linh."]
+];
+const SIGN_START=[[120,10],[219,11],[321,0],[420,1],[521,2],[621,3],[723,4],[823,5],[923,6],[1023,7],[1122,8],[1222,9]];
+function signOf(d,m){const v=m*100+d;let r=9;SIGN_START.forEach(([s,i])=>{if(v>=s)r=i});return r}
+const CAN=["Giáp","Ất","Bính","Đinh","Mậu","Kỷ","Canh","Tân","Nhâm","Quý"];
+const CHI=["Tý","Sửu","Dần","Mão","Thìn","Tỵ","Ngọ","Mùi","Thân","Dậu","Tuất","Hợi"];
+const ANIMAL=[["🐭","Chuột","Thông minh, nhanh nhạy, khéo xoay xở. Hay lo xa."],["🐂","Trâu","Chăm chỉ, kiên nhẫn, đáng tin. Hơi bảo thủ."],["🐯","Hổ","Dũng cảm, có sức hút lãnh đạo. Hay nóng tính."],["🐱","Mèo","Nhẹ nhàng, tinh tế, yêu hòa bình. Ngại xung đột."],["🐲","Rồng","Tự tin, nhiều năng lượng và hoài bão. Dễ kiêu."],["🐍","Rắn","Điềm tĩnh, sâu sắc, giỏi quan sát. Hơi kín đáo."],["🐴","Ngựa","Yêu tự do, năng động, hoạt bát. Thiếu kiên nhẫn."],["🐐","Dê","Hiền hòa, nghệ sĩ, giàu cảm xúc. Hay do dự."],["🐵","Khỉ","Lanh lợi, hài hước, sáng tạo. Dễ thiếu tập trung."],["🐔","Gà","Chăm chỉ, ngăn nắp, thẳng tính. Hay cầu toàn."],["🐶","Chó","Trung thành, chính trực, đáng tin. Hay lo lắng."],["🐷","Heo","Chân thành, hào phóng, thích hưởng thụ. Dễ cả tin."]];
+const NAPAM=[["Hải Trung Kim","Kim"],["Lư Trung Hỏa","Hỏa"],["Đại Lâm Mộc","Mộc"],["Lộ Bàng Thổ","Thổ"],["Kiếm Phong Kim","Kim"],["Sơn Đầu Hỏa","Hỏa"],["Giản Hạ Thủy","Thủy"],["Thành Đầu Thổ","Thổ"],["Bạch Lạp Kim","Kim"],["Dương Liễu Mộc","Mộc"],["Tuyền Trung Thủy","Thủy"],["Ốc Thượng Thổ","Thổ"],["Tích Lịch Hỏa","Hỏa"],["Tùng Bách Mộc","Mộc"],["Trường Lưu Thủy","Thủy"],["Sa Trung Kim","Kim"],["Sơn Hạ Hỏa","Hỏa"],["Bình Địa Mộc","Mộc"],["Bích Thượng Thổ","Thổ"],["Kim Bạch Kim","Kim"],["Phú Đăng Hỏa","Hỏa"],["Thiên Hà Thủy","Thủy"],["Đại Trạch Thổ","Thổ"],["Thoa Xuyến Kim","Kim"],["Tang Đố Mộc","Mộc"],["Đại Khê Thủy","Thủy"],["Sa Trung Thổ","Thổ"],["Thiên Thượng Hỏa","Hỏa"],["Thạch Lựu Mộc","Mộc"],["Đại Hải Thủy","Thủy"]];
+const HANH={"Kim":["kiên định, quyết đoán, trọng nguyên tắc","trắng, xám, ánh kim; hợp thêm vàng, nâu (Thổ sinh Kim)"],"Mộc":["nhân hậu, ham học hỏi, luôn muốn phát triển","xanh lá; hợp thêm xanh dương, đen (Thủy sinh Mộc)"],"Thủy":["linh hoạt, thông minh, giàu cảm xúc","xanh dương, đen; hợp thêm trắng, xám (Kim sinh Thủy)"],"Hỏa":["nhiệt huyết, năng động, thích dẫn dắt","đỏ, cam, hồng, tím; hợp thêm xanh lá (Mộc sinh Hỏa)"],"Thổ":["vững vàng, đáng tin, bao dung","vàng, nâu; hợp thêm đỏ, cam (Hỏa sinh Thổ)"]};
+const TAMHOP=[[8,0,4],[5,9,1],[2,6,10],[11,3,7]],LUCHOP=[[0,1],[2,11],[3,10],[4,9],[5,8],[6,7]],LUCXUNG=[[0,6],[1,7],[2,8],[3,9],[4,10],[5,11]];
+const has=(arr,a,b)=>arr.some(p=>p.includes(a)&&p.includes(b));
+function yearInfo(y){const i=((y-4)%60+60)%60,can=i%10,chi=i%12;return{can,chi,name:CAN[can]+" "+CHI[chi],np:NAPAM[Math.floor(i/2)]}}
+function chiRel(a,b){
+  if(a===b)return["Cùng tuổi","Hai bạn dễ đồng cảm vì giống nhau, nhưng cũng dễ cùng mắc một điểm yếu. Cần nhường nhịn và bổ sung cho nhau."];
+  if(has(LUCHOP,a,b))return["Lục hợp","Quan hệ được xem là rất hòa hợp, dễ hỗ trợ và thấu hiểu nhau."];
+  if(TAMHOP.some(g=>g.includes(a)&&g.includes(b)))return["Tam hợp","Quan hệ thuận lợi, dễ cùng chí hướng và đồng hành lâu dài."];
+  if(has(LUCXUNG,a,b))return["Lục xung","Hai tính cách khá khác biệt, dễ va chạm. Cần nhiều lắng nghe và tôn trọng để hòa hợp."];
+  return["Bình hòa","Không quá thuận cũng không quá khắc, mối quan hệ tốt hay không phụ thuộc vào sự thấu hiểu hằng ngày."];
+}
+
+/* ---------- Tarot (22 lá Ẩn Chính) ---------- */
+const TAROT=[
+["0","The Fool","Chàng Khờ","🌱","Khởi đầu mới, tự do, dám bước đi với tinh thần trong sáng.","Bồng bột, thiếu cân nhắc, cần nhìn kĩ trước khi nhảy."],
+["I","The Magician","Nhà Ảo Thuật","🪄","Ý chí và sáng tạo, bạn có đủ nguồn lực để biến ý tưởng thành hiện thực.","Tài năng bị lãng phí hoặc dùng sai cách, cẩn thận lời hứa suông."],
+["II","The High Priestess","Nữ Tư Tế","🌙","Trực giác, sự tĩnh lặng và tri thức ẩn sâu bên trong. Hãy lắng nghe tiếng nói nội tâm.","Bỏ qua trực giác, còn điều chưa được nói ra."],
+["III","The Empress","Hoàng Hậu","👑","Nuôi dưỡng, sung túc, sáng tạo và sự chăm sóc dành cho bản thân và người khác.","Quá phụ thuộc hoặc chăm sóc người khác mà quên mình, sáng tạo bị chậm lại."],
+["IV","The Emperor","Hoàng Đế","🏛️","Cấu trúc, kỉ luật và sự ổn định. Cần một kế hoạch rõ ràng.","Cứng nhắc, kiểm soát quá mức hoặc thiếu kỉ luật."],
+["V","The Hierophant","Giáo Hoàng","📜","Truyền thống, học hỏi và lời khuyên từ người đi trước.","Muốn thoát khỏi khuôn mẫu, nghi ngờ những quy tắc cũ."],
+["VI","The Lovers","Những Người Yêu Nhau","💞","Tình yêu, sự hòa hợp về giá trị và một lựa chọn quan trọng cần làm bằng trái tim lẫn lí trí.","Bất đồng, do dự hoặc lựa chọn chưa đúng với giá trị của bạn."],
+["VII","The Chariot","Cỗ Xe","🛡️","Quyết tâm và kiểm soát để tiến tới chiến thắng.","Mất phương hướng, thiếu kiểm soát, hãy chỉnh lại mục tiêu."],
+["VIII","Strength","Sức Mạnh","🦁","Can đảm dịu dàng, kiên nhẫn và sức mạnh nội tâm.","Tự ti, cạn năng lượng, cần nghỉ ngơi và tin vào bản thân."],
+["IX","The Hermit","Ẩn Sĩ","🏮","Thời gian suy ngẫm, tìm câu trả lời từ bên trong.","Cô lập quá mức hoặc né tránh việc nhìn lại chính mình."],
+["X","Wheel of Fortune","Bánh Xe Vận Mệnh","🎡","Chu kì đang xoay chuyển, một cơ hội hoặc thay đổi đang đến.","Giai đoạn kém thuận lợi tạm thời, đừng chống lại thay đổi."],
+["XI","Justice","Công Lý","⚖️","Công bằng, sự thật và nhân quả. Hãy hành động ngay thẳng.","Bất công, né tránh trách nhiệm hoặc thiếu thông tin."],
+["XII","The Hanged Man","Người Treo Ngược","🙃","Tạm dừng, buông bỏ và nhìn vấn đề từ góc khác.","Trì hoãn, hi sinh không cần thiết, cần quyết định thay vì chờ."],
+["XIII","Death","Cái Chết","🍂","Một giai đoạn kết thúc để chuyển hóa và bắt đầu mới. Không có nghĩa là chết thật.","Khó buông quá khứ, sợ thay đổi."],
+["XIV","Temperance","Điều Độ","⚗️","Cân bằng, kiên nhẫn và hòa hợp.","Mất cân bằng, thái quá hoặc vội vàng."],
+["XV","The Devil","Ác Quỷ","⛓️","Ràng buộc, cám dỗ hoặc thói quen khó bỏ. Bạn thực ra có thể tự chọn cách thoát ra.","Giải thoát, lấy lại quyền tự chủ."],
+["XVI","The Tower","Tòa Tháp","🗼","Sự đổi thay bất ngờ làm sụp đổ điều không vững, mở đường cho nền tảng thật hơn.","Tránh được biến cố lớn, hoặc sợ phải đối diện sự thật."],
+["XVII","The Star","Ngôi Sao","⭐","Hi vọng, chữa lành và cảm hứng sau giai đoạn khó khăn.","Mất niềm tin, thất vọng, cần chăm sóc bản thân."],
+["XVIII","The Moon","Mặt Trăng","🌕","Mơ hồ, lo âu và điều chưa rõ ràng. Đừng vội kết luận khi chưa đủ thông tin.","Mọi thứ dần sáng tỏ, nỗi sợ đang giảm."],
+["XIX","The Sun","Mặt Trời","☀️","Niềm vui, thành công và năng lượng tích cực.","Niềm vui đến chậm hơn dự kiến, đừng lạc quan thái quá."],
+["XX","Judgement","Phán Xét","📯","Thức tỉnh, nhìn lại hành trình và đáp lại tiếng gọi của bản thân.","Tự trách mình quá mức hoặc bỏ lỡ cơ hội vì do dự."],
+["XXI","The World","Thế Giới","🌍","Hoàn thành, trọn vẹn và đạt được thành tựu.","Còn thiếu bước cuối cùng, cần hoàn tất việc dang dở."]
+];
+function cardHtml(c,rev){return "<div class='tc'><div class='sym"+(rev?" rev":"")+"'>"+c[3]+"</div><div class='tn'>"+c[0]+" · "+esc(c[2])+"</div><div class='ten'>"+esc(c[1])+" · "+(rev?"Ngược":"Xuôi")+"</div></div>"}
+function draw(k){return shuffle(TAROT.map((c,i)=>i)).slice(0,k).map(i=>({c:TAROT[i],rev:Math.random()<0.3}))}
+
+/* ---------- Thần số học ---------- */
+const LIFE={1:"Người tiên phong: độc lập, quyết đoán, thích tự mở đường. Thử thách là học cách lắng nghe và hợp tác.",2:"Người hòa giải: nhạy cảm, kiên nhẫn, giỏi kết nối. Thử thách là dám nói lên nhu cầu của mình.",3:"Người truyền cảm hứng: sáng tạo, vui vẻ, giỏi diễn đạt. Thử thách là kiên trì đến cùng.",4:"Người xây dựng: thực tế, kỉ luật, đáng tin. Thử thách là linh hoạt hơn trước thay đổi.",5:"Người tự do: ham trải nghiệm, thích nghi nhanh, nhiều năng lượng. Thử thách là giữ sự cam kết.",6:"Người chăm sóc: trách nhiệm, yêu thương, coi trọng gia đình. Thử thách là không ôm hết việc của người khác.",7:"Người tìm kiếm: sâu sắc, thích nghiên cứu và chiêm nghiệm. Thử thách là mở lòng với người xung quanh.",8:"Người thành tựu: có tham vọng, giỏi quản lí và tổ chức. Thử thách là cân bằng giữa công việc và cuộc sống.",9:"Người nhân văn: rộng lượng, giàu lí tưởng, muốn giúp đời. Thử thách là biết buông những điều đã qua.",11:"Số chủ đạo 11: trực giác mạnh, giàu cảm hứng, truyền động lực cho người khác. Thử thách là quản lí sự nhạy cảm và căng thẳng.",22:"Số chủ đạo 22: tầm nhìn lớn kèm khả năng hiện thực hóa, hợp với những dự án có ích cho nhiều người. Thử thách là áp lực kì vọng.",33:"Số chủ đạo 33: tận tâm, giàu lòng trắc ẩn, thích nâng đỡ cộng đồng. Thử thách là đừng quên chăm sóc bản thân."};
+function red(x){while(x>9&&x!==11&&x!==22&&x!==33)x=String(x).split("").reduce((s,c)=>s+ +c,0);return x}
+const lifePath=(d,m,y)=>red(red(d)+red(m)+red(y));
+
+/* ---------- Giải mộng (quan niệm dân gian) ---------- */
+const DREAMS=[
+["rắn","ran","Mơ thấy rắn","Thường được hiểu là lời nhắc về một nỗi lo hoặc một người, một tình huống cần cảnh giác. Cũng có thể tượng trưng cho sự chuyển hóa."],
+["nước","nuoc lu ngap bien song","Mơ thấy nước (sông, biển, lũ)","Nước trong và êm thường gắn với cảm xúc bình yên. Nước dâng cao hoặc đục có thể phản ánh cảm xúc đang quá tải."],
+["rơi","roi nga cao","Mơ thấy rơi từ trên cao","Thường gắn với cảm giác mất kiểm soát hoặc áp lực. Có thể bạn đang cần nghỉ ngơi hoặc chuẩn bị kĩ hơn cho một việc."],
+["bay","bay","Mơ thấy mình bay","Thường được hiểu là khát vọng tự do, cảm giác vượt qua giới hạn hoặc một giai đoạn tự tin."],
+["rụng răng","rung rang","Mơ thấy rụng răng","Dân gian hay gắn với lo lắng về thay đổi hoặc sức khỏe người thân. Về tâm lí, đây là giấc mơ phổ biến khi căng thẳng."],
+["bị đuổi","duoi tron","Mơ bị đuổi theo","Thường phản ánh việc bạn đang né tránh một vấn đề hoặc cảm xúc. Thử xác định điều gì đang khiến bạn căng thẳng."],
+["thi cử","thi kiem tra","Mơ thấy thi cử","Thường xuất hiện khi bạn lo bị đánh giá hoặc sắp có thử thách. Không có nghĩa là kết quả xấu."],
+["tiền","tien vang","Mơ thấy tiền","Dân gian xem là điềm về công việc, tài lộc hoặc giá trị bản thân. Hãy coi đây là gợi ý để để ý đến kế hoạch tài chính của mình."],
+["lửa","lua chay","Mơ thấy lửa hoặc cháy nhà","Có thể là năng lượng mạnh, sự thay đổi hoặc một cảm xúc đang bùng lên như giận dữ, đam mê."],
+["mèo","meo cho","Mơ thấy mèo, chó","Chó thường tượng trưng cho lòng trung thành, bạn bè. Mèo thường gắn với sự độc lập và trực giác."],
+["hoa","hoa","Mơ thấy hoa","Thường là biểu tượng của niềm vui, tình cảm và những điều tốt đẹp đang nở rộ."],
+["đám","dam cuoi","Mơ thấy đám cưới","Thường gắn với sự gắn kết, cam kết hoặc một giai đoạn mới. Không nhất thiết là chuyện hôn nhân thật."],
+["nhà","nha ngoi","Mơ thấy nhà","Nhà thường tượng trưng cho bản thân và cảm giác an toàn. Nhà cũ có thể gợi nhớ ký ức hoặc điều chưa khép lại."]
+];
+const DREAMKW=DREAMS.map(d=>d[1].split(" "));
+
+/* ---------- Vận may hằng ngày ---------- */
+const COLORS=["đỏ","cam","vàng","xanh lá","xanh dương","tím","hồng","trắng","đen","xám"];
+const GIO=["Tý (23h–1h)","Sửu (1h–3h)","Dần (3h–5h)","Mão (5h–7h)","Thìn (7h–9h)","Tỵ (9h–11h)","Ngọ (11h–13h)","Mùi (13h–15h)","Thân (15h–17h)","Dậu (17h–19h)","Tuất (19h–21h)","Hợi (21h–23h)"];
+const AREAS=[
+["❤️ Tình cảm",["Hôm nay nên nhẹ nhàng, đừng tranh cãi vì chuyện nhỏ.","Mọi thứ bình ổn, một lời hỏi han sẽ làm không khí ấm hơn.","Dễ có khoảnh khắc ngọt ngào, hãy chủ động bày tỏ."]],
+["💼 Công việc",["Dễ gặp trục trặc nhỏ, hãy kiểm tra kĩ trước khi gửi hoặc nộp.","Tiến độ ổn định, tập trung từng việc một sẽ hiệu quả.","Ý tưởng của bạn được chú ý, đừng ngại đề xuất."]],
+["💰 Tiền bạc",["Nên tiết chế chi tiêu và hoãn khoản mua lớn.","Thu chi cân bằng, hợp để lên kế hoạch ngân sách.","Có cơ hội tốt về công việc hoặc thu nhập, nhưng vẫn nên cân nhắc."]],
+["🌿 Sức khỏe",["Hãy ngủ đủ và nghỉ ngơi sớm.","Duy trì nhịp sinh hoạt đều đặn, uống đủ nước.","Năng lượng tốt, hợp để vận động nhẹ ngoài trời."]]
+];
+const TIPS=["Hãy làm một việc nhỏ khiến bạn vui.","Dành 10 phút yên tĩnh cho bản thân.","Nói lời cảm ơn với một người bạn quý.","Sắp xếp lại góc làm việc để đầu óc nhẹ hơn.","Đừng so sánh mình với người khác hôm nay.","Một cuộc trò chuyện chân thành có thể giải tỏa nhiều điều.","Hãy tin vào những gì bạn đã chuẩn bị.","Tạm gác chuyện chưa quan trọng sang ngày mai."];
+function daily(si){
+  const t=new Date(),seed=si*100000+t.getFullYear()*372+(t.getMonth()+1)*31+t.getDate(),r=rng(seed);
+  const sc=AREAS.map(()=>1+Math.floor(r()*5)),avg=Math.round(sc.reduce((a,b)=>a+b,0)/4);
+  const lines=AREAS.map((a,i)=>{const tier=sc[i]<=2?0:sc[i]===3?1:2;return"<div class='st'><b>"+a[0]+"</b> <span class='stars'>"+stars(sc[i])+"</span><br>"+esc(a[1][tier])+"</div>"}).join("");
+  return{html:lines,avg,num:1+Math.floor(r()*99),color:COLORS[Math.floor(r()*COLORS.length)],gio:GIO[Math.floor(r()*12)],tip:TIPS[Math.floor(r()*TIPS.length)]};
+}
+
+/* ---------- trạng thái ---------- */
+let P=null,mode="name",tmp={};
+function signCompat(i,j){
+  const A=SIGNS[i][3],B=SIGNS[j][3],pair=[A,B].sort().join("+");
+  let base,txt;
+  if(A===B){base=84;txt="Cùng nguyên tố "+A+" nên rất dễ hiểu nhau và chung nhịp sống, nhưng cũng dễ cùng thổi phồng điểm yếu của nhau."}
+  else if(pair==="Khí+Lửa"){base=88;txt="Lửa gặp Khí giúp nhau bùng lên: nhiều năng lượng, ý tưởng và niềm vui chung."}
+  else if(pair==="Nước+Đất"){base=88;txt="Đất giữ cho Nước có bờ, Nước nuôi cho Đất tươi tốt: bổ trợ nhau về cảm xúc và sự thực tế."}
+  else if(pair==="Lửa+Đất"){base=64;txt="Lửa nhanh và bốc, Đất chậm và chắc. Nếu tôn trọng nhịp của nhau, hai bạn bổ sung rất tốt."}
+  else if(pair==="Khí+Nước"){base=62;txt="Khí thiên về lí trí, Nước thiên về cảm xúc. Cần trò chuyện thẳng thắn và kiên nhẫn để hiểu nhau."}
+  else if(pair==="Lửa+Nước"){base=54;txt="Lửa và Nước rất khác tính. Có thể thu hút mạnh nhưng cần nhiều thấu hiểu để không làm nhau tổn thương."}
+  else{base=57;txt="Đất thực tế, Khí thích tự do. Cần thỏa hiệp giữa sự ổn định và sự đổi mới."}
+  if(Math.abs(i-j)===6)base+=4,txt+=" Hai cung đối nhau trên vòng hoàng đạo nên thường bị hút bởi chính điều mình thiếu.";
+  return{score:Math.min(base,96),txt};
+}
+
+/* ---------- luồng hội thoại ---------- */
+function parseDate(s){
+  const m=s.trim().match(/^(\d{1,2})\s*[\/\-.]\s*(\d{1,2})\s*[\/\-.]\s*(\d{4})$/);if(!m)return null;
+  const d=+m[1],mo=+m[2],y=+m[3],dt=new Date(y,mo-1,d);
+  if(dt.getFullYear()!==y||dt.getMonth()!==mo-1||dt.getDate()!==d||y<1900||y>new Date().getFullYear())return null;
+  return{d,m:mo,y};
+}
+function menu(){
+  mode="free";homeBtn.style.display="block";
+  qIn.placeholder="Gõ từ khóa: tarot, giải mộng, thần số...";sendBtn.textContent="Gửi";
+  bot("Bạn muốn xem gì, "+esc(P.name)+"?"+NOTE);
+  opts([["♈ Cung hoàng đạo của tôi",showSign],["🌟 Vận may hôm nay",showDaily],["🃏 Rút bài Tarot",tarotMenu],["🐉 Tử vi theo Can Chi",tuvi],["🔢 Thần số học",numer],["💞 Hợp cung hoàng đạo",compatSign],["🤝 Hợp tuổi",compatYear],["🌙 Giải mộng",dreamAsk],["🔮 Hỏi vũ trụ Có/Không",yesno]]);
+}
+function showSign(){
+  const s=SIGNS[P.si];
+  bot("<div class='t'>"+s[1]+" "+s[0]+" ("+s[2]+")</div><div class='st'><b>Nguyên tố:</b> "+s[3]+" · <b>Nhóm:</b> "+s[4]+" · <b>Hành tinh cai quản:</b> "+s[5]+"</div><div class='st'><b>Tính cách:</b> "+s[6]+"</div><div class='st'><b>Tình yêu:</b> "+s[7]+"</div><div class='st'><b>Sự nghiệp:</b> "+s[8]+"</div>");
+  opts([["🌟 Vận may hôm nay",showDaily],["💞 Hợp cung",compatSign],["↩ Menu",menu]]);
+}
+function showDaily(){
+  const s=SIGNS[P.si],x=daily(P.si),t=new Date();
+  bot("<div class='t'>"+s[1]+" "+s[0]+" · "+pad(t.getDate())+"/"+pad(t.getMonth()+1)+"/"+t.getFullYear()+"</div><div class='st'>Tổng quan: <span class='stars'>"+stars(x.avg)+"</span></div>"+x.html+"<div class='st'><b>Con số may mắn:</b> "+x.num+" · <b>Màu may mắn:</b> "+x.color+"</div><div class='st'><b>Giờ tốt:</b> "+x.gio+"</div><div class='st'>✨ "+esc(x.tip)+"</div><div class='mute'>Dự báo được tạo theo ngày và cung, mang tính giải trí.</div>");
+  opts([["↩ Menu",menu]]);
+}
+function tarotMenu(){bot("Hãy nghĩ đến câu hỏi của bạn, hít thở sâu rồi chọn cách rút bài:");opts([["Rút 1 lá (thông điệp hôm nay)",()=>reading(1)],["Rút 3 lá (Quá khứ – Hiện tại – Tương lai)",()=>reading(3)],["↩ Menu",menu]])}
+function reading(k){
+  const d=draw(k),pos=k===1?["Thông điệp"]:["Quá khứ","Hiện tại","Tương lai"];
+  d.forEach((x,i)=>bot("<div class='t'>"+pos[i]+"</div>"+cardHtml(x.c,x.rev)+"<div class='st'>"+esc(x.rev?x.c[5]:x.c[4])+"</div>"));
+  const rv=d.filter(x=>x.rev).length;
+  bot("<div class='st'>"+(k===1?"Hãy xem lá bài như một lời gợi ý để suy ngẫm, không phải lời tiên đoán.":"Hãy đọc ba lá như một câu chuyện: điều đã đi qua, điều đang diễn ra và hướng bạn có thể chọn. "+(rv>=2?"Có nhiều lá ngược, đây là lúc nên chậm lại và nhìn kĩ bên trong.":"Quyết định cuối cùng luôn nằm ở bạn."))+"</div>"+NOTE);
+  opts([["🃏 Rút lại",tarotMenu],["↩ Menu",menu]]);
+}
+function tuvi(){
+  const y=P.ly,yi=yearInfo(y),an=ANIMAL[yi.chi],hanh=yi.np[1],hh=HANH[hanh];
+  const tam=TAMHOP.find(g=>g.includes(yi.chi)).filter(c=>c!==yi.chi).map(c=>CHI[c]+" "+ANIMAL[c][1]).join(", ");
+  const hop=LUCHOP.find(p=>p.includes(yi.chi)),xung=LUCXUNG.find(p=>p.includes(yi.chi));
+  const lh=hop.find(c=>c!==yi.chi),lx=xung.find(c=>c!==yi.chi);
+  bot("<div class='t'>"+an[0]+" Tuổi "+yi.name+" ("+an[1]+")</div><div class='st'><b>Năm âm lịch:</b> "+y+"</div><div class='st'><b>Con giáp:</b> "+esc(an[2])+"</div><div class='st'><b>Mệnh (nạp âm):</b> "+yi.np[0]+", hành "+hanh+": "+hh[0]+".</div><div class='st'><b>Màu hợp:</b> "+hh[1]+".</div><div class='st'><b>Tam hợp:</b> "+tam+"</div><div class='st'><b>Lục hợp:</b> "+CHI[lh]+" · <b>Lục xung:</b> "+CHI[lx]+"</div><div class='mute'>Đây là tổng quan theo năm sinh. Lá số Tử Vi Đẩu Số đầy đủ cần ngày giờ sinh âm lịch và do thầy chuyên môn lập.</div>");
+  opts([["🧭 Xem cung phi (hướng hợp)",cungphi],["↩ Menu",menu]]);
+}
+function cungphi(){bot("Bạn là nam hay nữ?");opts([["Nam",()=>cp("m")],["Nữ",()=>cp("f")]])}
+function cp(g){
+  const y=P.ly;let s=String(y).split("").reduce((a,c)=>a+ +c,0);while(s>9)s=String(s).split("").reduce((a,c)=>a+ +c,0);
+  let q;if(y<2000)q=g==="m"?11-s:4+s;else q=g==="m"?9-s:6+s;
+  while(q>9)q-=9;while(q<=0)q+=9;if(q===5)q=g==="m"?2:8;
+  const N={1:["Khảm","Thủy"],2:["Khôn","Thổ"],3:["Chấn","Mộc"],4:["Tốn","Mộc"],6:["Càn","Kim"],7:["Đoài","Kim"],8:["Cấn","Thổ"],9:["Ly","Hỏa"]}[q],dong=[1,3,4,9].includes(q);
+  bot("<div class='t'>Cung phi: "+N[0]+" ("+N[1]+")</div><div class='st'>Thuộc nhóm <b>"+(dong?"Đông tứ mệnh":"Tây tứ mệnh")+"</b>.</div><div class='st'>Hướng được xem là tốt: "+(dong?"Bắc, Đông, Nam, Đông Nam":"Tây, Tây Bắc, Tây Nam, Đông Bắc")+".</div><div class='mute'>Theo quan niệm phong thủy Bát Trạch, chỉ mang tính tham khảo khi chọn hướng bàn làm việc, giường ngủ.</div>");
+  opts([["↩ Menu",menu]]);
+}
+function numer(){
+  const n=lifePath(P.d,P.m,P.y);
+  bot("<div class='t'>Số chủ đạo của bạn: "+n+"</div><div class='st'>"+esc(LIFE[n])+"</div><div class='mute'>Tính từ ngày sinh "+pad(P.d)+"/"+pad(P.m)+"/"+P.y+": rút gọn ngày, tháng, năm rồi cộng lại (giữ 11, 22, 33).</div>");
+  opts([["↩ Menu",menu]]);
+}
+function compatSign(){bot("Chọn cung của người kia:");opts(SIGNS.map((s,i)=>[s[1]+" "+s[0],()=>{const c=signCompat(P.si,i);bot("<div class='t'>"+SIGNS[P.si][1]+" "+SIGNS[P.si][0]+" + "+s[1]+" "+s[0]+"</div><div class='st'>Độ hợp tham khảo: <b>"+c.score+"%</b></div><div class='st'>"+esc(c.txt)+"</div><div class='mute'>Hai người hợp hay không còn nhờ sự thấu hiểu và nỗ lực, không chỉ nhờ cung hoàng đạo.</div>");opts([["💞 Xem cặp khác",compatSign],["↩ Menu",menu]])}]))}
+function compatYear(){mode="year2";qIn.placeholder="Nhập năm sinh người kia, ví dụ 2003";sendBtn.textContent="Xem";bot("Nhập <b>năm sinh</b> của người kia (4 chữ số, tính theo năm âm lịch nếu bạn biết).")}
+function doYear(y){
+  const a=yearInfo(P.ly),b=yearInfo(y),r=chiRel(a.chi,b.chi);
+  bot("<div class='t'>"+ANIMAL[a.chi][0]+" "+a.name+" + "+ANIMAL[b.chi][0]+" "+b.name+"</div><div class='st'><b>Quan hệ:</b> "+r[0]+"</div><div class='st'>"+esc(r[1])+"</div><div class='st'><b>Mệnh:</b> "+a.np[1]+" ("+a.np[0]+") và "+b.np[1]+" ("+b.np[0]+")</div><div class='mute'>Chỉ xét con giáp và mệnh theo quan niệm dân gian, mang tính giải trí.</div>");
+  mode="free";qIn.placeholder="Gõ từ khóa: tarot, giải mộng, thần số...";sendBtn.textContent="Gửi";opts([["🤝 Xem cặp khác",compatYear],["↩ Menu",menu]]);
+}
+function dreamAsk(){mode="dream";qIn.placeholder="Bạn mơ thấy gì? (rắn, nước, bay...)";sendBtn.textContent="Giải";bot("Hãy gõ điều bạn mơ thấy (ví dụ: <i>rắn</i>, <i>nước</i>, <i>bay</i>, <i>rụng răng</i>, <i>bị đuổi</i>) hoặc chọn nhanh:");opts(DREAMS.map((d,i)=>[d[2].replace("Mơ thấy ","").replace("Mơ ",""),()=>showDream(i)]).concat([["↩ Menu",menu]]))}
+function showDream(i){const d=DREAMS[i];bot("<div class='t'>"+esc(d[2])+"</div><div class='st'>"+esc(d[3])+"</div><div class='mute'>Theo quan niệm dân gian và gợi ý tâm lí, không phải dự báo chắc chắn.</div>");opts([["🌙 Giải mộng khác",dreamAsk],["↩ Menu",menu]])}
+function doDream(t){
+  const ws=norm(t).split(/[^a-z0-9]+/).filter(Boolean),hit=[];
+  DREAMKW.forEach((kws,i)=>{if(kws.some(k=>k.length>1&&ws.indexOf(k)>=0))hit.push(i)});
+  if(!hit.length){bot("Mình chưa có giải thích cho giấc mơ này. Bạn thử từ khóa khác hoặc chọn từ danh sách nhé.");dreamAsk();return}
+  showDream(hit[0]);
+}
+function yesno(){
+  const a=[["Có","Các dấu hiệu đang nghiêng về phía bạn. Hãy chuẩn bị kĩ rồi tiến lên."],["Nên","Đây là hướng đi khá thuận, miễn bạn giữ sự tỉnh táo."],["Chưa phải lúc","Hãy chờ thêm thông tin hoặc thời điểm tốt hơn."],["Không","Có thể nên chọn hướng khác hoặc thay đổi cách tiếp cận."],["Tùy cách bạn hành động","Kết quả phụ thuộc vào sự chuẩn bị và lựa chọn của chính bạn."]],r=pick(a);
+  bot("<div class='t'>🔮 "+r[0]+"</div><div class='st'>"+esc(r[1])+"</div><div class='mute'>Câu trả lời ngẫu nhiên cho vui. Với việc quan trọng, hãy cân nhắc bằng thông tin thật và hỏi người có chuyên môn.</div>");
+  opts([["🔮 Hỏi lại",yesno],["↩ Menu",menu]]);
+}
+function finishProfile(){
+  P.ly=P.ly||P.y;P.si=signOf(P.d,P.m);
+  const s=SIGNS[P.si],yi=yearInfo(P.ly);
+  bot("Cảm ơn "+esc(P.name)+"! Bạn thuộc cung <b>"+s[1]+" "+s[0]+"</b>, tuổi <b>"+yi.name+" ("+ANIMAL[yi.chi][1]+")</b>, mệnh "+yi.np[1]+".");
+  menu();
+}
+function onSearch(t){
+  const w=norm(t),map=[["tarot|bai",tarotMenu],["hop cung",compatSign],["hop tuoi",compatYear],["cung|hoang dao",showSign],["van may|hom nay",showDaily],["tu vi|con giap|can chi|menh",tuvi],["than so|chu dao",numer],["mo|giai mong",dreamAsk],["co khong|yes|quyet dinh",yesno]];
+  for(const [k,f] of map){if(k.split("|").some(x=>w.indexOf(x)>=0)){f();return}}
+  bot("Mình chưa hiểu ý bạn. Bạn thử các từ khóa như <i>tarot</i>, <i>giải mộng</i>, <i>thần số</i>, <i>hợp tuổi</i> hoặc chọn từ menu nhé.");opts([["↩ Menu",menu]]);
+}
+$("bar").addEventListener("submit",e=>{
+  e.preventDefault();const t=qIn.value.trim();if(!t)return;qIn.value="";user(t);
+  if(mode==="name"){
+    P={name:t.slice(0,30)};mode="dob";qIn.placeholder="Ngày sinh dạng 25/12/2005";sendBtn.textContent="Gửi";
+    bot("Chào <b>"+esc(P.name)+"</b>! Hãy nhập <b>ngày sinh dương lịch</b> của bạn theo dạng <b>ngày/tháng/năm</b> (ví dụ 25/12/2005).");
+  }else if(mode==="dob"){
+    const d=parseDate(t);
+    if(!d){bot("Mình chưa đọc được ngày sinh đó. Bạn nhập lại theo dạng <b>25/12/2005</b> nhé.");return}
+    Object.assign(P,d);
+    if(d.m<=2){
+      mode="wait";
+      bot("Bạn sinh vào tháng "+d.m+", có thể trước hoặc sau Tết Nguyên Đán (Tết rơi vào khoảng 21/1 đến 20/2 dương lịch). Bạn sinh <b>trước</b> hay <b>sau</b> Tết năm đó?");
+      opts([["Trước Tết",()=>{P.ly=P.y-1;finishProfile()}],["Sau Tết",()=>{P.ly=P.y;finishProfile()}]]);
+    }else finishProfile();
+  }else if(mode==="year2"){
+    if(!/^\d{4}$/.test(t)||+t<1900||+t>new Date().getFullYear()){bot("Hãy nhập năm sinh gồm 4 chữ số, ví dụ 2003.");return}
+    doYear(+t);
+  }else if(mode==="dream")doDream(t);
+  else if(mode==="free")onSearch(t);
+});
+homeBtn.onclick=()=>{if(P&&P.si!==undefined){user("↩ Menu");menu()}};
+bot("Xin chào! Chào mừng bạn đến với Huyền Bí Bot 🔮. Mình có thể xem cung hoàng đạo, rút bài Tarot, xem tử vi theo tuổi, thần số học, hợp tuổi và giải mộng. Vui lòng nhập tên của bạn để bắt đầu nhé!");
+</script>
+</body>
+</html>
